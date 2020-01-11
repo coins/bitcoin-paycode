@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style type="text/css">
+    html {
+        font-family: system-ui;
+        font-size: 15px;
+        line-height: 21px;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    body {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+    }
+
+    h2 {
+        margin-top: 64px;
+    }
+
+    .paycode-form {
+        display: flex;
+    }
+
+    .input-container {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .paycode-form input {
+        font-size: 15px;
+        margin: 4px;
+    }
+
+    .address {
+        max-width: 100%;
+        padding: 16px 0;
+        word-break: break-word;
+    }
+
+    .address-form input {
+        width: 264px;
+    }
+
+    .error {
+        padding: 16px;
+        border: 1px solid red;
+        color: red;
+        margin-top: 16px;
+    }
+
+    .error:empty {
+        display: none;
+    }
+
+    code {
+        background: rgba(0, 0, 0, 0.1);
+        padding: 2px 4px;
+        word-break: break-word;
+    }
+
+    main {
+        flex-grow: 1;
+        max-width: 720px;
+        margin: 40px auto 0;
+    }
+
+    footer {
+        margin-top: 64px;
+        text-align: center;
+    }
+
+    footer a {
+        text-decoration: none;
+    }
+
+    .paycode-proof{
+        display: flex;
+    }
+
+    .address:empty + .copy-button{
+        display: none;
+    }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>Bitcoin PayCode</h1>
+        A PayCode is a user-friendly identifier for a bitcoin address. The concept is inspired by <a target="_blank" href="https://www.easypaysy.org/">easypaysy</a>. The following is a simple prototype to demonstrate the basic concept.
+        <h2>Example PayCode: 326681/625/0</h2>
+        In our example, the PayCode <code>326681/625/0</code> represents the address <code>1LBregs3t4goLpvBghbJbFLoyt1rPL3jJh</code> because that address occured in block number <code>326681</code> in transaction number <code>625</code> in output number <code>0</code>.
+        <div id="$error" class="error"></div>
+        <h2>Convert PayCode to Address</h2>
+        <form id="$paycodeForm" action="#">
+            <div class="paycode-form">
+                <div class="input-container">
+                    <label>Block</label>
+                    <div>
+                        <input placeholder="000000" id="$blockIndex" type="number" min="0" max="999999">
+                        /
+                    </div>
+                </div>
+                <div class="input-container">
+                    <label>TX</label>
+                    <div>
+                        <input placeholder="000" id="$transactionIndex" type="number" min="0" max="10000">
+                        /
+                    </div>
+                </div>
+                <div class="input-container">
+                    <label>Output</label>
+                    <input placeholder="000" id="$outputIndex" type="number" min="0" max="256">
+                </div>
+            </div>
+            <button id="$button">Go!</button>
+            <div id="$addressOut" class="address"></div>
+            <button type="none" id="$copyButton" class="copy-button">Copy Address</button>
+        </form>
+        <h2>Convert Address to PayCode</h2>
+        <form id="$addressForm" action="#" class="address-form">
+            <div>
+                <input id="$address" placeholder="address">
+            </div>
+            <button id="$button2">Go!</button>
+            <div id="$index"></div>
+        </form>
+        <h3>PayCode Certificate</h3>
+        A PayCode certificate proves the mapping from PayCode to a particular address. It is basically an SPV inclusion proof. The most simple proof consists of a transaction inclusion proof and the corresponding block header. More subsequent block headers can be added to strengthen the proof of work on top. To prove a block's height, we can either download the full headers chain or we could use the more succinct <a href="https://eprint.iacr.org/2019/226">FlyClient scheme</a>.
+        <h4>Inclusion Proof</h4>
+        <code id="$paycodeOutput" class="paycode-proof"></code>
+        <h4>Block Header</h4>
+        <h2>Further Work</h2>
+        To improve privacy the easypayse whitepaper discusses solutions that do not reuse addresses. Their scheme also introduces checksums and other topics.
+        <h4>PayCode Usability</h4>
+        The usability of the PayCode is another interesting research topic. I advocate for the most simple number format. The code should not contain any special characters but only numbers from 0-9.
+        This is to maximize the usability. The purpose of payment codes is for humans to easily communicate an address. It should be concise. It should leave very little room for error. A credit card number like format is intuitive. It works well internationally. People are used to enter it into a device. It is easy to communicate. 
+        <br>
+        <br>
+        A basic scheme simply adds trailing zeros. Applied to our example <code>326681/625/0</code> we get <code>3266 8106 2500</code>. We can add a IBAN-like checksum by converting it into an integer and performing a basic mod-97 operation. In our example <code>326681062500 % 97 == 15</code> the final result would be <br> <code>3266 8106 2500 15</code>.
+        <h4>Bitcoin URI</h4>
+        For Wallet compatibility we can extend the Bitcoin URI standard <code>bitcoin:32668106250015</code>
+    </main>
+    <footer>
+        <a href="https://github.com/robinlinus" target="_blank">Built with &#10084; by Robin Linus</a>
+    </footer>
+</body>
+
+</html>
+<script type="module">
+    import {Esplora} from '../esplora.js/esplora.js';
+    import './clipboard.js';
+
+
+function getOutputIndex(tx, address){
+    return tx.vout.reduce( (accu, out, index) => out.scriptpubkey_address === address && accu === null ? index :accu, null);
+}
+
+async function indexFromAddress(address){
+    const txs = await Esplora.fetchTransactions(address); // todo sort in chronologic order 
+    const incommingTxs = txs.filter(tx => tx.vout.some(out => out.scriptpubkey_address === address));
+    const firstIncommingTx = incommingTxs[incommingTxs.length-1];
+    const txid = firstIncommingTx.txid;
+    const blockIndex = firstIncommingTx.status.block_height;
+    const outputIndex = getOutputIndex(firstIncommingTx, address);
+    const inclusionProof =  await Esplora.fetchInclusionProof(txid);
+    const transactionIndex = inclusionProof.pos;
+    console.log(txs, firstIncommingTx, inclusionProof);
+    return {
+        paycode : `${blockIndex} / ${transactionIndex} / ${outputIndex}`,
+        proof : inclusionProof
+    }
+}
+
+async function addressFromIndex(blockIndex, transactionIndex, outputIndex) {
+    const blockHash = await Esplora.fetchBlockAtHeight(blockIndex);
+    const txHash = await Esplora.fetchTransationInBlock(blockHash, transactionIndex);
+    const tx = await Esplora.fetchTransaction(txHash);
+    const output = tx.vout[outputIndex];
+    if(!output) throw Error('output index out of range');
+    const address = output.scriptpubkey_address || output.scriptpubkey;
+    return address;
+}
+
+function displayError(error){
+    const msg = error.message || error;
+    $error.textContent = msg;
+}
+
+$paycodeForm.onsubmit = async e => {
+    e.preventDefault();
+    displayError('');
+    $addressOut.textContent = '';
+    try {
+        const blockIndex = $blockIndex.value || 0;
+        const transactionIndex = $transactionIndex.value || 0;
+        const outputIndex = $outputIndex.value || 0;
+        const address = await addressFromIndex(blockIndex, transactionIndex, outputIndex);
+        $addressOut.innerHTML = `<a href="bitcoin:${address}">${address}</a>`;
+    } catch(e){
+        displayError(e)
+    }
+}
+
+$addressForm.onsubmit = async e => {
+    e.preventDefault();
+    displayError('');
+    $index.textContent = '';
+    try{
+        const address = $address.value;
+        const {paycode, proof} = await indexFromAddress(address);
+        $index.textContent = `PayCode: ${paycode}`;
+        console.log(proof);
+        $paycodeOutput.textContent = JSON.stringify(proof);
+    } catch(e){
+        displayError(e)
+    }
+}
+
+$copyButton.onclick = async e => {
+    const address = $addressOut.textContent;
+    const text = await navigator.clipboard.writeText(address);
+    displayError('Copied to clipboard');
+    setTimeout(_ => displayError(''), 5000);
+}
+
+indexFromAddress('1HzwAZ76YQQuAzC86WaAB7VcpVZmQb3c4c');
+
+
+function parsePayCode(paycode){
+    let prefix = Math.round( paycode / 1e2 );
+    const checksum = paycode % 1e2; 
+    if(prefix % 97 !== checksum) throw Error('Invalid Checksum');
+    const blockIndex = Math.round( prefix / 1e6 );
+    prefix = prefix % 1e6;
+    const transactionIndex = Math.round( prefix / 1e2 );
+    prefix = prefix % 1e2;
+    const outputIndex = prefix;
+    return { blockIndex, transactionIndex, outputIndex }
+}
+
+console.log(parsePayCode(32668106250015));
+</script>
