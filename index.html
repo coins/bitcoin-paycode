@@ -203,7 +203,7 @@ $paycodeForm.onsubmit = async e => {
         const transactionIndex = $transactionIndex.value || 0;
         const outputIndex = $outputIndex.value || 0;
         const address = await addressFromIndex(blockIndex, transactionIndex, outputIndex);
-        $addressOut.innerHTML = `<a href="bitcoin:${address}">${address}</a>`;
+        $addressOut.innerHTML = `<a href="https://blockstream.info/address/${address}">${address}</a>`;
     } catch(e){
         displayError(e)
     }
