@@ -88,6 +88,10 @@
     .address:empty + .copy-button{
         display: none;
     }
+        
+    .address{
+        flex-direction:column;    
+    }
     </style>
 </head>
 
@@ -203,7 +207,11 @@ $paycodeForm.onsubmit = async e => {
         const transactionIndex = $transactionIndex.value || 0;
         const outputIndex = $outputIndex.value || 0;
         const address = await addressFromIndex(blockIndex, transactionIndex, outputIndex);
-        $addressOut.innerHTML = `<a href="https://blockstream.info/address/${address}" target="_blank">${address}</a>`;
+        $addressOut.innerHTML = `
+            <b>${address}</b>
+            <a href="https://blockstream.info/address/${address}" target="_blank">Open in Explorer</a>
+            <a href="bitcoin:${address}" target="_blank">Open in Wallet</a>
+        `;
     } catch(e){
         displayError(e)
     }
